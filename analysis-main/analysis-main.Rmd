@@ -1,0 +1,200 @@
+---
+title: "COVID-19 pandemic"
+date: "`r Sys.Date()`"
+author: MD
+output:
+  rmdformats::html_clean:
+    highlight: kate
+---
+
+```{r setup, echo=FALSE, cache=FALSE}
+library(knitr)
+library(rmdformats)
+
+## Global options
+options(max.print="75")
+opts_chunk$set(echo=FALSE,
+	             cache=TRUE,
+               prompt=FALSE,
+               tidy=TRUE,
+               comment=NA,
+               message=FALSE,
+               warning=FALSE, 
+               cache.lazy = FALSE)
+opts_knit$set(width=75)
+```
+
+
+```{r, echo = FALSE, message=F}
+require(data.table)
+require(ggplot2)
+require(plotly)
+require(paletteer)
+
+# Moving average
+myMA = function(x, npts = 3) {
+  if(npts > 2 & ((npts %% 2) == 1) & length(x) > npts/2) {
+    locX = stats::filter(x, rep(1/npts, npts))
+    locX = locX[!is.na(locX)]
+    
+    locExtend = ceiling(npts/4)
+    #print(seq(1,locExtend, 1))
+    #print(seq(length(x)-locExtend + 1, length(x), 1))
+    
+    return(c(x[seq(1,locExtend, 1)], 
+             locX,
+             x[seq(length(x)-locExtend + 1, length(x), 1)])
+           )
+  } else {
+    stop("The number of points for the moving average should be an even number greater than 2")
+  }
+}
+```
+
+
+```{r, echo = F}
+lPar = list()
+lPar$startCases = 100
+lPar$nptsMA = 5 # moving average window
+```
+
+Data from [Our World In Data](https://ourworldindata.org/coronavirus).
+
+[Here](https://covid.ourworldindata.org/data/full_data.csv) is the source data file.
+
+
+```{r, echo =FALSE}
+dt = fread("../data/full_data.csv")
+
+vCountries = c("China", "Italy", "Switzerland", "Japan", "South Korea", "Poland", "Germany", "Ireland", "Austria", "France", "United Kingdom", "United States", "Spain", "Netherlands")
+
+dtSub = dt[location %in% vCountries]
+
+dtSub = dtSub[total_cases >= lPar$startCases]
+
+dtSub[, 
+      day := 1:.N - 1, 
+      by = location]
+
+dtSub[, 
+      `:=`(rate_cases = myMA(c(0, diff(total_cases)), lPar$nptsMA ),
+           rate_deaths = myMA(c(0, diff(total_deaths)), lPar$nptsMA ),
+           deaths_per1000infections = myMA(total_deaths / total_cases * 1000, lPar$nptsMA )), 
+      by = location]
+
+dtLimitRates = data.table(x = seq(0, max(max(dtSub[["day"]]))),
+                          location = "Limit Rate")
+dtLimitRates[, y2x := lPar$startCases + exp(x/2)]
+
+```
+
+# Number of confirmed cases
+
+```{r, echo = F, fig.width=10, fig.height=7}
+p1 = ggplot(dtSub, 
+            aes(x = day,
+                y = total_cases,
+                group = location,
+                label = date)) +
+  #  geom_line(data = dtLimitRates, aes(x = x, y = y2x)) +
+  geom_line(aes(color = location)) +
+  scale_y_log10() +
+  paletteer::scale_color_paletteer_d(name = "", palette = "ggthemes::Tableau 20") +
+  labs(title = "Total number of confirmed cases since 100th case",
+       subtitle = "Data from: https://covid.ourworldindata.org/data/full_data.csv",
+       caption = sprintf("Last update on: %s", date()),
+       x = "Day since 100th confirmed case",
+       y = "Confirmed cases")
+
+ggplotly(p1)
+```
+
+# Rate of confirmed cases
+
+Applied a 5-point moving average.
+
+```{r, echo = F, fig.width=10, fig.height=7}
+p2 = ggplot(dtSub, 
+            aes(x = day,
+                y = rate_cases,
+                group = location,
+                label = date)) +
+  #  geom_line(data = dtLimitRates, aes(x = x, y = y2x)) +
+  geom_line(aes(color = location)) +
+  coord_cartesian(ylim = c(0, 4500)) +
+  paletteer::scale_color_paletteer_d(name = "", palette = "ggthemes::Tableau 20") +
+  labs(title = "Rate of confirmed cases",
+       subtitle = "Data from: https://covid.ourworldindata.org/data/full_data.csv",
+       caption = sprintf("Last update on: %s", date()),
+       x = "Day since 100th confirmed case",
+       y = "Rate of confirmed cases")
+
+ggplotly(p2)
+```
+
+# Number of deaths
+
+```{r, echo = F, fig.width=10, fig.height=7}
+p3 = ggplot(dtSub, 
+            aes(x = day,
+                y = total_deaths,
+                group = location,
+                label = date)) +
+  #  geom_line(data = dtLimitRates, aes(x = x, y = y2x)) +
+  geom_line(aes(color = location)) +
+  scale_y_log10() +
+  paletteer::scale_color_paletteer_d(name = "", palette = "ggthemes::Tableau 20") +
+  labs(title = "Number of deaths since 100th confirmed case",
+       subtitle = "Data from: https://covid.ourworldindata.org/data/full_data.csv",
+       caption = sprintf("Last update on: %s", date()),
+       x = "Day since 100th confirmed case",
+       y = "Number of deaths")
+
+ggplotly(p3)
+```
+
+
+# Rate of deaths
+
+Applied a 5-point moving average.
+
+```{r, echo = F, fig.width=10, fig.height=7}
+p4 = ggplot(dtSub, 
+            aes(x = day,
+                y = rate_deaths,
+                group = location,
+                label = date)) +
+  #  geom_line(data = dtLimitRates, aes(x = x, y = y2x)) +
+  geom_line(aes(color = location)) +
+  #coord_cartesian(ylim = c(0, 4500)) +
+  paletteer::scale_color_paletteer_d(name = "", palette = "ggthemes::Tableau 20") +
+  labs(title = "Rate of deaths",
+       subtitle = "Data from: https://covid.ourworldindata.org/data/full_data.csv",
+       caption = sprintf("Last update on: %s", date()),
+       x = "Day since 100th confirmed case",
+       y = "Rate of deaths")
+
+ggplotly(p4)
+```
+
+# Number of deaths per 1000 infections
+
+Applied a 5-point moving average.
+
+```{r, echo = F, fig.width=10, fig.height=7}
+p5 = ggplot(dtSub, 
+            aes(x = day,
+                y = deaths_per1000infections,
+                group = location,
+                label = date)) +
+  #  geom_line(data = dtLimitRates, aes(x = x, y = y2x)) +
+  geom_line(aes(color = location)) +
+  paletteer::scale_color_paletteer_d(name = "", palette = "ggthemes::Tableau 20") +
+  labs(title = "Number of deaths per 1000 infections since 100th confirmed case",
+       subtitle = "Data from: https://covid.ourworldindata.org/data/full_data.csv",
+       caption = sprintf("Last update on: %s", date()),
+       x = "Day since 100th confirmed case",
+       y = "Number of deaths per 1000 infections")
+
+ggplotly(p5)
+```
