@@ -198,3 +198,26 @@ p5 = ggplot(dtSub,
 
 ggplotly(p5)
 ```
+
+# New cases vs toal cases
+
+```{r, echo = F, fig.width=10, fig.height=7}
+p6 = ggplot(dtSub, 
+            aes(x = total_cases,
+                y = new_cases,
+                group = location,
+                label = date)) +
+  #  geom_line(data = dtLimitRates, aes(x = x, y = y2x)) +
+  geom_line(aes(color = location)) +
+  scale_x_log10() +
+  scale_y_log10() +
+  paletteer::scale_color_paletteer_d(name = "", palette = "ggthemes::Tableau 20") +
+  labs(title = "Number of new cases vs total confirmed cases (since 100th confirmed case)",
+       subtitle = "Data from: https://covid.ourworldindata.org/data/full_data.csv",
+       caption = sprintf("Last update on: %s", date()),
+       x = "Total confirmed cases",
+       y = "New confirmed cases")
+
+ggplotly(p6)
+```
+
